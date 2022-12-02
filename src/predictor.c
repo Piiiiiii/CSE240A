@@ -6,6 +6,7 @@
 //  described in the README                               //
 //========================================================//
 #include <stdio.h>
+#include <string.h>
 #include "predictor.h"
 
 //
@@ -37,10 +38,72 @@ int verbose;
 //TODO: Add your own Branch Predictor data structures here
 //
 
+uint8_t* gshareGlobalHistoryTable;
+uint32_t gshareGolbalHistory;
+
+
+//------------------------------------//
+//      Predictor Util Functions      //
+//------------------------------------//
+
+int get_gshare_index(uint32_t pc) {
+  int index = (pc ^ gshareGolbalHistory) & ((1 << ghistoryBits) - 1);
+  return index;
+}
+
+uint8_t pred_incre(uint8_t pred) {
+  if (pred != ST) {
+    pred += 1;
+  }
+  return pred;
+}
+
+uint8_t pred_decre(uint8_t pred) {
+  if (pred != SN) {
+    pred -= 1;
+  }
+  return pred;
+}
+
+uint8_t pred_taken(uint8_t pred) {
+  if (pred == ST || pred == WT) {
+    return TAKEN;
+  } else if (pred == SN || pred == WN) {
+    return NOTTAKEN;
+  }
+
+  printf("Error: Invalid pred %d\n", pred);
+  return NOTTAKEN;
+}
+
+uint8_t outcome_to_pred(uint8_t pred, uint8_t outcome) {
+  if (outcome == TAKEN) {
+    return pred_incre(pred);
+  } else if (outcome == NOTTAKEN) {
+    return pred_decre(pred);
+  } else {
+    printf("Error: Invalid outcome %d\n", outcome);
+    return pred;
+  }
+}
 
 //------------------------------------//
 //        Predictor Functions         //
 //------------------------------------//
+
+void init_gshare() {
+  if (verbose) {
+    printf("Init gshare\n");
+  }
+
+  gshareGolbalHistory = 0;
+
+  int size = (1 << ghistoryBits) * sizeof(uint8_t);
+  gshareGlobalHistoryTable = malloc(size);
+  memset(gshareGlobalHistoryTable, WN, size);
+
+  return;
+}
 
 // Initialize the predictor
 //
@@ -50,6 +113,22 @@ init_predictor()
   //
   //TODO: Initialize Branch Predictor Data Structures
   //
+
+  if (bpType == STATIC) {
+    // nothing
+  } else if (bpType == GSHARE) {
+    init_gshare();
+  } else {
+    printf("Error: Invalid bpType: %d \n", bpType);
+  }
+
+  return;
+}
+
+uint8_t gshare_make_prediction(uint32_t pc) {
+  int index = get_gshare_index(pc);
+  uint8_t pred = gshareGlobalHistoryTable[index];
+  return pred_taken(pred);
 }
 
 // Make a prediction for conditional branch instruction at PC 'pc'
@@ -68,6 +147,7 @@ make_prediction(uint32_t pc)
     case STATIC:
       return TAKEN;
     case GSHARE:
+      return gshare_make_prediction(pc);
     case TOURNAMENT:
     case CUSTOM:
     default:
@@ -76,6 +156,16 @@ make_prediction(uint32_t pc)
 
   // If there is not a compatable bpType then return NOTTAKEN
   return NOTTAKEN;
+}
+
+void gshare_train_predictor(uint32_t pc, uint8_t outcome) {
+  int index = get_gshare_index(pc);
+  uint8_t old_pred = gshareGlobalHistoryTable[index];
+  gshareGlobalHistoryTable[index] = outcome_to_pred(old_pred, outcome);
+
+  gshareGolbalHistory = (gshareGolbalHistory << 1) | outcome;
+
+  return;
 }
 
 // Train the predictor the last executed branch at PC 'pc' and with
@@ -88,4 +178,14 @@ train_predictor(uint32_t pc, uint8_t outcome)
   //
   //TODO: Implement Predictor training
   //
+
+  if (bpType == STATIC) {
+    // nothing
+  } else if (bpType == GSHARE) {
+    gshare_train_predictor(pc, outcome);
+  } else {
+    printf("Error: Invalid bpType: %d \n", bpType);
+  }
+
+  return;
 }
