@@ -51,14 +51,14 @@ int get_gshare_index(uint32_t pc) {
   return index;
 }
 
-int pred_incre(uint8_t pred) {
+uint8_t pred_incre(uint8_t pred) {
   if (pred != ST) {
     pred += 1;
   }
   return pred;
 }
 
-int pred_decre(uint8_t pred) {
+uint8_t pred_decre(uint8_t pred) {
   if (pred != SN) {
     pred -= 1;
   }
