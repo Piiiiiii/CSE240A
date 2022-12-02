@@ -266,6 +266,8 @@ void tournament_train_predictor(uint32_t pc, uint8_t outcome) {
   // local
   int registerIndex = pc & ((1 << pcIndexBits) - 1);
   train_table(localIndex, tLocalHistoryTable, &tLocalRegisterTable[registerIndex], outcome);
+
+  return;
 }
 
 // Train the predictor the last executed branch at PC 'pc' and with
