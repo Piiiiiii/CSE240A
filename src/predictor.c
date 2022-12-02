@@ -38,9 +38,18 @@ int verbose;
 //TODO: Add your own Branch Predictor data structures here
 //
 
+// For gshare
 uint8_t* gshareGlobalHistoryTable;
 uint32_t gshareGolbalHistory;
 
+// For tournament
+uint8_t* chooser;
+
+uint8_t* tGlobalHistoryTable;
+uint32_t tGlobalHistory;
+
+uint32_t* tLocalRegisterTable;
+uint8_t* tLocalHistoryTable;
 
 //------------------------------------//
 //      Predictor Util Functions      //
@@ -49,6 +58,17 @@ uint32_t gshareGolbalHistory;
 int get_gshare_index(uint32_t pc) {
   int index = (pc ^ gshareGolbalHistory) & ((1 << ghistoryBits) - 1);
   return index;
+}
+
+int get_t_global_index() {
+  int globalIndex = (tGlobalHistory & ((1 << ghistoryBits) - 1));
+  return globalIndex;
+}
+
+int get_t_local_index(uint32_t pc) {
+  int pcIndex = pc & ((1 << pcIndexBits) - 1);
+  int tableIndex = tLocalRegisterTable[pcIndex] & ((1 << lhistoryBits) - 1);
+  return tableIndex;
 }
 
 uint8_t pred_incre(uint8_t pred) {
@@ -65,7 +85,7 @@ uint8_t pred_decre(uint8_t pred) {
   return pred;
 }
 
-uint8_t pred_taken(uint8_t pred) {
+uint8_t pred_to_taken(uint8_t pred) {
   if (pred == ST || pred == WT) {
     return TAKEN;
   } else if (pred == SN || pred == WN) {
@@ -87,22 +107,48 @@ uint8_t outcome_to_pred(uint8_t pred, uint8_t outcome) {
   }
 }
 
+void init_global_helper(uint32_t* globalHistory, uint8_t** globalHistoryTable) {
+  *globalHistory = 0;
+
+  int size = (1 << ghistoryBits) * sizeof(uint8_t);
+  *globalHistoryTable = (uint8_t*)malloc(size);
+  memset(*globalHistoryTable, WN, size);
+
+  return;
+}
+
+void train_table(int index, uint8_t* table, uint32_t* history, uint8_t outcome) {
+  uint8_t old_pred = table[index];
+  table[index] = outcome_to_pred(old_pred, outcome);
+
+  *history = ((*history) << 1) | outcome;
+  *history &= (1 << ghistoryBits) - 1;
+
+  return;
+}
+
 //------------------------------------//
 //        Predictor Functions         //
 //------------------------------------//
 
 void init_gshare() {
-  if (verbose) {
-    printf("Init gshare\n");
-  }
+  init_global_helper(&gshareGolbalHistory, &gshareGlobalHistoryTable);
+}
 
-  gshareGolbalHistory = 0;
+void init_tournament() {
+  init_global_helper(&tGlobalHistory, &tGlobalHistoryTable);
 
   int size = (1 << ghistoryBits) * sizeof(uint8_t);
-  gshareGlobalHistoryTable = malloc(size);
-  memset(gshareGlobalHistoryTable, WN, size);
+  chooser = (uint8_t*)malloc(size);
+  memset(chooser, WN, size);
 
-  return;
+  size = (1 << pcIndexBits) * sizeof(uint32_t);
+  tLocalRegisterTable = (uint32_t*)malloc(size);
+  memset(tLocalRegisterTable, 0, size);
+
+  size = (1 << lhistoryBits) * sizeof(uint8_t);
+  tLocalHistoryTable = (uint8_t*)malloc(size);
+  memset(tLocalHistoryTable, WN, size);
 }
 
 // Initialize the predictor
@@ -118,6 +164,8 @@ init_predictor()
     // nothing
   } else if (bpType == GSHARE) {
     init_gshare();
+  } else if (bpType == TOURNAMENT) {
+    init_tournament();
   } else {
     printf("Error: Invalid bpType: %d \n", bpType);
   }
@@ -128,7 +176,28 @@ init_predictor()
 uint8_t gshare_make_prediction(uint32_t pc) {
   int index = get_gshare_index(pc);
   uint8_t pred = gshareGlobalHistoryTable[index];
-  return pred_taken(pred);
+  return pred_to_taken(pred);
+}
+
+uint8_t tournament_make_prediction(uint32_t pc) {
+  int globalIndex = get_t_global_index();
+  uint8_t choice = chooser[globalIndex];
+
+  if (choice == SN || choice == WN) {
+    // global
+    uint8_t pred = tGlobalHistoryTable[globalIndex];
+    return pred_to_taken(pred);
+
+  } else if (choice == ST || choice == WT) {
+    // local
+    int index = get_t_local_index(pc);
+    uint8_t pred = tLocalHistoryTable[index];
+    return pred_to_taken(pred);
+
+  } else {
+    printf("Error: Invalid choice: %d \n", choice);
+    return 0;
+  }
 }
 
 // Make a prediction for conditional branch instruction at PC 'pc'
@@ -149,6 +218,7 @@ make_prediction(uint32_t pc)
     case GSHARE:
       return gshare_make_prediction(pc);
     case TOURNAMENT:
+      return tournament_make_prediction(pc);
     case CUSTOM:
     default:
       break;
@@ -160,12 +230,42 @@ make_prediction(uint32_t pc)
 
 void gshare_train_predictor(uint32_t pc, uint8_t outcome) {
   int index = get_gshare_index(pc);
-  uint8_t old_pred = gshareGlobalHistoryTable[index];
-  gshareGlobalHistoryTable[index] = outcome_to_pred(old_pred, outcome);
+  // uint8_t old_pred = gshareGlobalHistoryTable[index];
+  // gshareGlobalHistoryTable[index] = outcome_to_pred(old_pred, outcome);
 
-  gshareGolbalHistory = (gshareGolbalHistory << 1) | outcome;
+  // gshareGolbalHistory = (gshareGolbalHistory << 1) | outcome;
+  // gshareGolbalHistory &= (1 << ghistoryBits) - 1;
+
+  train_table(index, gshareGlobalHistoryTable, &gshareGolbalHistory, outcome);
 
   return;
+}
+
+void tournament_train_predictor(uint32_t pc, uint8_t outcome) {
+  int globalIndex = get_t_global_index();
+  int localIndex = get_t_local_index(pc);
+
+  // chooser
+  uint8_t localPred = 0;
+  uint8_t globalOutcome = pred_to_taken(tGlobalHistoryTable[globalIndex]);
+  uint8_t localOutcome = pred_to_taken(tLocalHistoryTable[localIndex]);
+
+  if (globalOutcome != localOutcome) {
+    if (globalOutcome == outcome) {
+      // move to global
+      chooser[globalIndex] = pred_decre(chooser[globalIndex]);
+    } else {
+      // move to local
+      chooser[globalIndex] = pred_incre(chooser[globalIndex]);
+    }
+  }
+
+  // global
+  train_table(globalIndex, tGlobalHistoryTable, &tGlobalHistory, outcome);
+
+  // local
+  int registerIndex = pc & ((1 << pcIndexBits) - 1);
+  train_table(localIndex, tLocalHistoryTable, &tLocalRegisterTable[registerIndex], outcome);
 }
 
 // Train the predictor the last executed branch at PC 'pc' and with
@@ -183,6 +283,8 @@ train_predictor(uint32_t pc, uint8_t outcome)
     // nothing
   } else if (bpType == GSHARE) {
     gshare_train_predictor(pc, outcome);
+  } else if (bpType == TOURNAMENT) {
+    tournament_train_predictor(pc, outcome);
   } else {
     printf("Error: Invalid bpType: %d \n", bpType);
   }

@@ -9,3 +9,10 @@ Implementation:
 Branches:           3771697
 Incorrect:           830671
 Misprediction Rate:  22.024
+
+make && bunzip2 -kc ../traces/int_1.bz2 | ./predictor --tournament:10:10:10
+
+Reference:
+Branches:           3771697
+Incorrect:           444250
+Misprediction Rate:  11.779
