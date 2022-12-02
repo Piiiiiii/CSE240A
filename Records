@@ -1,0 +1,11 @@
+bunzip2 -kc ../traces/int_1.bz2 | ./predictor --gshare:10
+
+Raw:
+Branches:           3771697
+Incorrect:          2107011
+Misprediction Rate:  55.864
+
+Implementation:
+Branches:           3771697
+Incorrect:          1396433
+Misprediction Rate:  37.024
