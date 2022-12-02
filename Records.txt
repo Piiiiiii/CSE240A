@@ -7,5 +7,5 @@ Misprediction Rate:  55.864
 
 Implementation:
 Branches:           3771697
-Incorrect:          1396433
-Misprediction Rate:  37.024
+Incorrect:           830671
+Misprediction Rate:  22.024

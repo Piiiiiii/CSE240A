@@ -47,7 +47,7 @@ uint32_t gshareGolbalHistory;
 //------------------------------------//
 
 int get_gshare_index(uint32_t pc) {
-  int index = (pc ^ gshareGolbalHistory) & (1 << ghistoryBits - 1);
+  int index = (pc ^ gshareGolbalHistory) & ((1 << ghistoryBits) - 1);
   return index;
 }
 
@@ -77,10 +77,13 @@ uint8_t pred_taken(uint8_t pred) {
 }
 
 uint8_t outcome_to_pred(uint8_t pred, uint8_t outcome) {
-  if (outcome) {
+  if (outcome == TAKEN) {
     return pred_incre(pred);
-  } else {
+  } else if (outcome == NOTTAKEN) {
     return pred_decre(pred);
+  } else {
+    printf("Error: Invalid outcome %d\n", outcome);
+    return pred;
   }
 }
 
@@ -97,7 +100,7 @@ void init_gshare() {
 
   int size = (1 << ghistoryBits) * sizeof(uint8_t);
   gshareGlobalHistoryTable = malloc(size);
-  memset(gshareGlobalHistoryTable, NOTTAKEN, size);
+  memset(gshareGlobalHistoryTable, WN, size);
 
   return;
 }
@@ -186,4 +189,3 @@ train_predictor(uint32_t pc, uint8_t outcome)
 
   return;
 }
-
