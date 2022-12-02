@@ -1,4 +1,4 @@
-bunzip2 -kc ../traces/int_1.bz2 | ./predictor --gshare:10
+make && bunzip2 -kc ../traces/int_1.bz2 | ./predictor --gshare:10
 
 Raw:
 Branches:           3771697
