@@ -1,10 +1,5 @@
 make && bunzip2 -kc ../traces/int_1.bz2 | ./predictor --gshare:10
 
-Raw:
-Branches:           3771697
-Incorrect:          2107011
-Misprediction Rate:  55.864
-
 Implementation:
 Branches:           3771697
 Incorrect:           830671
@@ -16,3 +11,63 @@ Reference:
 Branches:           3771697
 Incorrect:           444250
 Misprediction Rate:  11.779
+
+make && bunzip2 -kc ../traces/int_2.bz2 | ./predictor --gshare:10
+
+Branches:           3755315
+Incorrect:            27551
+Misprediction Rate:   0.734
+
+make && bunzip2 -kc ../traces/int_2.bz2 | ./predictor --tournament:10:10:10
+
+Branches:           3755315
+Incorrect:            15404
+Misprediction Rate:   0.410
+
+make && bunzip2 -kc ../traces/fp_1.bz2 | ./predictor --gshare:10
+
+Branches:           1546797
+Incorrect:            18865
+Misprediction Rate:   1.220
+
+make && bunzip2 -kc ../traces/fp_1.bz2 | ./predictor --tournament:10:10:10
+
+Branches:           1546797
+Incorrect:            15325
+Misprediction Rate:   0.991
+
+make && bunzip2 -kc ../traces/fp_2.bz2 | ./predictor --gshare:10
+
+Branches:           2422049
+Incorrect:           148486
+Misprediction Rate:   6.131
+
+make && bunzip2 -kc ../traces/fp_2.bz2 | ./predictor --tournament:10:10:10
+
+Branches:           2422049
+Incorrect:            80335
+Misprediction Rate:   3.317
+
+make && bunzip2 -kc ../traces/mm_1.bz2 | ./predictor --gshare:10
+
+Branches:           3014850
+Incorrect:           395065
+Misprediction Rate:  13.104
+
+make && bunzip2 -kc ../traces/mm_1.bz2 | ./predictor --tournament:10:10:10
+
+Branches:           3014850
+Incorrect:            59903
+Misprediction Rate:   1.987
+
+make && bunzip2 -kc ../traces/mm_2.bz2 | ./predictor --gshare:10
+
+Branches:           2563897
+Incorrect:           341369
+Misprediction Rate:  13.314
+
+make && bunzip2 -kc ../traces/mm_2.bz2 | ./predictor --tournament:10:10:10
+
+Branches:           2563897
+Incorrect:           211411
+Misprediction Rate:   8.246
