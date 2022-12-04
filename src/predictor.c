@@ -41,6 +41,15 @@ int verbose;
 uint8_t* gshareGlobalHistoryTable;
 uint32_t gshareGolbalHistory;
 
+uint32_t customGolbalHistory;
+#define memory 64*1024
+#define NumberOfNeuron 28
+#define NumberOfPerception (int)(memory/(NumberOfNeuron+1)*8)
+
+int perception[NumberOfPerception][NumberOfNeuron];
+int bias[NumberOfPerception];
+int y;
+
 
 //------------------------------------//
 //      Predictor Util Functions      //
@@ -48,6 +57,11 @@ uint32_t gshareGolbalHistory;
 
 int get_gshare_index(uint32_t pc) {
   int index = (pc ^ gshareGolbalHistory) & ((1 << ghistoryBits) - 1);
+  return index;
+}
+
+int get_perception_index(uint32_t pc){
+  int index = pc % NumberOfPerception;
   return index;
 }
 
@@ -87,6 +101,14 @@ uint8_t outcome_to_pred(uint8_t pred, uint8_t outcome) {
   }
 }
 
+int min(int a, int b){
+  return (a>b)?b:a;
+}
+
+int max(int a, int b){
+  return (a<b)?b:a;
+}
+
 //------------------------------------//
 //        Predictor Functions         //
 //------------------------------------//
@@ -105,6 +127,21 @@ void init_gshare() {
   return;
 }
 
+void init_custom(){
+  if (verbose){
+    printf("Init Perception\n");
+  }
+  srand(2);
+  for(int i=0; i<NumberOfPerception; i++){
+    bias[i] = rand()%20-10;
+    for(int j=0; j<NumberOfNeuron; j++){
+      perception[i][j] = 0;
+    }
+  }
+  customGolbalHistory = 0;
+}
+
+
 // Initialize the predictor
 //
 void
@@ -118,7 +155,9 @@ init_predictor()
     // nothing
   } else if (bpType == GSHARE) {
     init_gshare();
-  } else {
+  } else if (bpType == CUSTOM){
+    init_custom();
+  }else {
     printf("Error: Invalid bpType: %d \n", bpType);
   }
 
@@ -129,6 +168,25 @@ uint8_t gshare_make_prediction(uint32_t pc) {
   int index = get_gshare_index(pc);
   uint8_t pred = gshareGlobalHistoryTable[index];
   return pred_taken(pred);
+}
+
+uint8_t custom_make_prediction(uint32_t pc){
+  int index = get_perception_index(pc);
+  int y = bias[index];
+  int bit_pos = 1;
+  int x = 0;
+  for(int i=0; i < NumberOfNeuron; i++){
+    if((customGolbalHistory & bit_pos) == 0)
+      x = -1;
+    else
+      x = 1;
+    y += x*perception[index][i];
+    bit_pos = (bit_pos << 1);
+  }
+  if (y>=0)
+    return TAKEN;
+  else
+    return NOTTAKEN;
 }
 
 // Make a prediction for conditional branch instruction at PC 'pc'
@@ -150,6 +208,7 @@ make_prediction(uint32_t pc)
       return gshare_make_prediction(pc);
     case TOURNAMENT:
     case CUSTOM:
+      return custom_make_prediction(pc);
     default:
       break;
   }
@@ -168,6 +227,32 @@ void gshare_train_predictor(uint32_t pc, uint8_t outcome) {
   return;
 }
 
+
+void custom_train_predictor(uint32_t pc, uint8_t outcome){
+  int index = get_perception_index(pc);
+  uint8_t pred = custom_make_prediction(pc);
+  int x = 0, bit_pos = 1;
+  if((outcome != pred) || ((y < (NumberOfNeuron*4)) && (y > -(NumberOfNeuron*4)))){
+    if (bias[index] > -128 && bias[index] < 127){
+      if(outcome == TAKEN)
+        bias[index] += 1;
+      else
+        bias[index] -= 1;
+    }
+    for(int i=0; i<NumberOfNeuron; i++){
+      int temp_v = perception[index][i] - (int)(y/NumberOfNeuron);
+      if(((outcome == TAKEN) && (customGolbalHistory&bit_pos)) || ((outcome == NOTTAKEN) && ((customGolbalHistory&bit_pos)==0)))
+        perception[index][i] = min(127, temp_v);
+      else
+        perception[index][i] = max(-128, temp_v);
+    }
+    bit_pos = (bit_pos<<1);
+  }
+  customGolbalHistory = (customGolbalHistory<<1);
+  if(outcome == TAKEN)
+    customGolbalHistory = (customGolbalHistory || 1);
+}
+
 // Train the predictor the last executed branch at PC 'pc' and with
 // outcome 'outcome' (true indicates that the branch was taken, false
 // indicates that the branch was not taken)
@@ -183,6 +268,8 @@ train_predictor(uint32_t pc, uint8_t outcome)
     // nothing
   } else if (bpType == GSHARE) {
     gshare_train_predictor(pc, outcome);
+  } else if (bpType == CUSTOM){
+    custom_train_predictor(pc, outcome);
   } else {
     printf("Error: Invalid bpType: %d \n", bpType);
   }
